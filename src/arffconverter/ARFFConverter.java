@@ -6,32 +6,40 @@ import java.io.*;
  * @author Lizzie Herman
  */
 public class ARFFConverter {
-    static ArrayList dataset = new ArrayList();
-    /*
-    The ArrayList dataset has flipped notation when calling dataset.get(i) you 
-    are getting the ith col not row so it gives you an entire attribute column 
-    you have to use dataset.get(i)[j] to get the value in the 
-    table at (j,i) jth row ith col
-    */
+    static ArrayList<String[]> dataset = new ArrayList();
     static Hashtable<String,ArrayList<String>> descrip = new Hashtable(); 
     /*
     key is String att name , value is either arraylist of nominal values or 
     string NUMERIC
     */
-    static int n = 10; // the tunable variable for nominal detection
-                    
-
+    static int n = 13; // the tunable variable for nominal detection
+    
+    static Comparator<String> comp = new Comparator<String>(){
+        public int compare(String s1, String s2){
+            if(s1.matches("[0-9]+") && s2.matches("[0-9]+")){
+                int i1 = Integer.parseInt(s1);
+                int i2 = Integer.parseInt(s2);
+                return i1 - i2;
+            }
+            return s1.compareTo(s2);
+        }
+    };
+    
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
-        System.out.print("Data Set File Name: ");
-        String filename = scanner.next();
-        System.out.print("Is class attribute first? (y or n) ");
-        boolean first = (scanner.next().equalsIgnoreCase("y"));
-        readFile(filename, first);
-        //System.out.print("Data Set Description File Name: ");
-        //String desfilename = scanner.next();
-        //createARFFFile(filename);
-        
+        while(true){
+            System.out.print("Data Set File Name: ");
+            String filename = scanner.next();
+            System.out.print("Is class attribute first? (y or n) ");
+            boolean first = (scanner.next().equalsIgnoreCase("y"));
+            readFile(filename, first);
+            //System.out.print("Data Set Description File Name: ");
+            //String desfilename = scanner.next();
+            createARFFFile(filename);
+            System.out.print("\nConvert another file? (y or n) ");
+            if(scanner.next().equalsIgnoreCase("n")) break;
+            System.out.println();
+        }
     }
     
     static void readFile(String filename, boolean first){
@@ -41,7 +49,7 @@ public class ARFFConverter {
         String[] split;
         //Pattern pattern = new Pattern();
         
-        ArrayList<String[]> olddataset = new ArrayList();
+        dataset.clear(); // make sure dataset is empty
         
         try {
             br = new BufferedReader(new FileReader(filename));
@@ -55,7 +63,7 @@ public class ARFFConverter {
                     }
                     split[split.length-1] = c;
                 }
-                olddataset.add(split);
+                dataset.add(split);
                 line = br.readLine();
             }
             br.close();
@@ -65,45 +73,32 @@ public class ARFFConverter {
             e.printStackTrace();
         }
         
-        String[] bob = olddataset.get(0);
-        int numVal = olddataset.size();
-        dataset.clear(); // make sure dataset is empty
+        String[] bob = dataset.get(0);
+        int numVal = dataset.size();
         descrip.clear(); // make sure description is empty
-        for(int i = 0; i < bob.length; i++){
-            String att = bob[i];
-            String attname = i + "attribute";
-            if(i == bob.length - 1) attname = "class";
+        for(int c = 0; c < bob.length; c++){
+            String att = bob[c];
+            String attname = c + "attribute";
+            if(c == bob.length - 1) attname = "class";
             ArrayList<String> noms = new ArrayList();
             if(att.matches("[a-zA-Z]+")){ // check to see if att contains letters
-                String[] x = new String[numVal];
-                for(int j = 0; j < x.length; j++){
-                    String a = olddataset.get(j)[i];
-                    x[j] = a;
+                for(int r = 0; r < numVal; r++){
+                    String a = dataset.get(r)[c];
                     if(! noms.contains(a)){
                         noms.add(a);
                     }
                 }
-                dataset.add(x);
             } else if(att.contains(".")){ // check to see if att is double or int
-                double[] x = new double[numVal];
-                for(int j = 0; j < x.length; j++){
-                    String a = olddataset.get(j)[i];
-                    x[j] = Double.parseDouble(a);
-                }
-                dataset.add(x);
                 noms.clear(); // make sure noms is empty
                 noms.add("NUMERIC");   
             } else { // att is an int
-                int[] x = new int[numVal];
-                for(int j = 0; j < x.length; j++){
-                    String a = olddataset.get(j)[i];
-                    x[j] = Integer.parseInt(a);
-                    if(noms.size() <= n && ! noms.contains(a)){
+                for(int r = 0; r < numVal; r++){
+                    String a = dataset.get(r)[c];
+                    if((c == bob.length - 1 || noms.size() <= n) && ! noms.contains(a)){
                         noms.add(a);
                     }
                 }
-                dataset.add(x);
-                if(noms.size() > n){
+                if(!(c == bob.length - 1) && noms.size() > n){
                     noms.clear(); // make sure noms is empty
                     noms.add("NUMERIC");
                 }
@@ -112,4 +107,47 @@ public class ARFFConverter {
         }
     }
     
+    static void createARFFFile(String filename){
+        int a = filename.indexOf('.');
+        String name = filename.substring(0, a);
+        try {
+            PrintWriter result = new PrintWriter(new BufferedWriter(new FileWriter(name + ".arff", false)));
+            result.println("% 1. Title: " + name);
+            result.println("%");
+            result.println("% 2. Sources:");
+            result.println("%\t(a) Creator: ");
+            result.println("%\t(b) Donor: ");
+            result.println("%\t(c) Date: ");
+            result.println("%");
+            result.println("@RELATION " + name);
+            result.println(" ");
+            for(int i = 0; i < descrip.size()-1; i++){
+                ArrayList noms = descrip.get(i + "attribute");
+                if(noms.size() == 1) result.println("@ATTRIBUTE " + i + "attribute\tNUMERIC");
+                else{
+                    noms.sort(comp);
+                    result.println("@ATTRIBUTE " + i + "attribute\t" + noms.toString());
+                }
+            }
+            ArrayList noms = descrip.get("class");
+            noms.sort(comp);
+            result.println("@ATTRIBUTE class\t" + noms.toString() + "\n");
+            result.println(" ");
+            result.println("\n\n@DATA");
+            int numAtt = dataset.get(0).length;
+            int numVal = dataset.size();
+            for(int r = 0; r < numVal; r++){
+                for(int c = 0; c < numAtt; c++){
+                    result.print(dataset.get(r)[c]);
+                    if(c < numAtt-1) result.print(",");
+                }
+                result.println("\n");
+            }
+            result.close();
+        } catch(FileNotFoundException e){
+            e.printStackTrace();
+        } catch(IOException e){
+            e.printStackTrace();
+        }
+    }
 }
