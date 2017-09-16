@@ -33,9 +33,9 @@ public class ARFFConverter {
             System.out.print("Is class attribute first? (y or n) ");
             boolean first = (scanner.next().equalsIgnoreCase("y"));
             readFile(filename, first);
-            //System.out.print("Data Set Description File Name: ");
-            //String desfilename = scanner.next();
-            createARFFFile(filename);
+            System.out.print("Data Set Description File Name: ");
+            String desfilename = scanner.next();
+            createARFFFile(filename, desfilename);
             System.out.print("\nConvert another file? (y or n) ");
             if(scanner.next().equalsIgnoreCase("n")) break;
             System.out.println();
@@ -107,12 +107,14 @@ public class ARFFConverter {
         }
     }
     
-    static void createARFFFile(String filename){
+    static void createARFFFile(String filename, String desfilename){
         int a = filename.indexOf('.');
         String name = filename.substring(0, a);
         try {
+            BufferedReader br = new BufferedReader(new FileReader(desfilename));
             PrintWriter result = new PrintWriter(new BufferedWriter(new FileWriter(name + ".arff", false)));
-            result.println("% 1. Title: " + name);
+            String line = br.readLine();
+            result.println(line);
             result.println("%");
             result.println("% 2. Sources:");
             result.println("%\t(a) Creator: ");
@@ -144,6 +146,7 @@ public class ARFFConverter {
                 result.println("\n");
             }
             result.close();
+            br.close();
         } catch(FileNotFoundException e){
             e.printStackTrace();
         } catch(IOException e){
