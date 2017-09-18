@@ -141,12 +141,23 @@ public class ARFFConverter {
                 if(noms.size() == 1) result.println("@ATTRIBUTE " + i + "attribute\tNUMERIC");
                 else{
                     noms.sort(comp);
-                    result.println("@ATTRIBUTE " + i + "attribute\t" + noms.toString());
+                    result.println("@ATTRIBUTE " + i + "attribute\t");
+                    result.print("{ " + noms.get(0));
+                    for(int i = 1, i < noms.size(); i++){
+                        result.print(", " + noms.get(i));
+                    }
+                    result.println("}");
                 }
             }
             ArrayList noms = descrip.get("class");
             noms.sort(comp);
-            result.println("@ATTRIBUTE class\t" + noms.toString() + "\n");
+            result.println("@ATTRIBUTE class\t");
+            result.print("{ " + noms.get(0));
+            for(int i = 1, i < noms.size(); i++){
+                result.print(", " + noms.get(i));
+            }
+            result.println("}\n");
+            
             result.println("@DATA");
             int numAtt = dataset.get(0).length;
             int numVal = dataset.size();
