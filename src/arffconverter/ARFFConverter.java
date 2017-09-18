@@ -33,8 +33,12 @@ public class ARFFConverter {
             System.out.print("Is class attribute first? (y or n) ");
             boolean first = (scanner.next().equalsIgnoreCase("y"));
             readFile(filename, first);
-            System.out.print("Data Set Description File Name: ");
-            String desfilename = scanner.next();
+            System.out.print("Do you also have a description file? (y or n) ");
+            String desfilename = "";
+            if((scanner.next().equalsIgnoreCase("y"))){
+                System.out.print("Data Set Description File Name: ");
+                desfilename = scanner.next();
+            }
             createARFFFile(filename, desfilename);
             System.out.print("\nConvert another file? (y or n) ");
             if(scanner.next().equalsIgnoreCase("n")) break;
@@ -54,7 +58,11 @@ public class ARFFConverter {
         try {
             br = new BufferedReader(new FileReader(filename));
             line = br.readLine();
-            while (line != null) {
+            while (line != null){
+                if(line.equals("")){ // we don't care about any blank lines
+                    line = br.readLine();
+                    continue;
+                }
                 split = line.split(csvSplitBy);
                 if(first){ // the class att has to be the last att
                     String c = split[0];
@@ -78,10 +86,10 @@ public class ARFFConverter {
         descrip.clear(); // make sure description is empty
         for(int c = 0; c < bob.length; c++){
             String att = bob[c];
-            String attname = c + "attribute";
+            String attname = (c+1) + "attribute";
             if(c == bob.length - 1) attname = "class";
             ArrayList<String> noms = new ArrayList();
-            if(att.matches("[a-zA-Z]+")){ // check to see if att contains letters
+            if(att.contains("[a-zA-Z]+")){ // check to see if att contains letters
                 for(int r = 0; r < numVal; r++){
                     String a = dataset.get(r)[c];
                     if(! noms.contains(a)){
@@ -93,6 +101,7 @@ public class ARFFConverter {
                 noms.add("NUMERIC");   
             } else { // att is an int
                 for(int r = 0; r < numVal; r++){
+                    //System.out.println("(" + r + "," + c + ")");
                     String a = dataset.get(r)[c];
                     if((c == bob.length - 1 || noms.size() <= n) && ! noms.contains(a)){
                         noms.add(a);
@@ -110,20 +119,24 @@ public class ARFFConverter {
     static void createARFFFile(String filename, String desfilename){
         int a = filename.indexOf('.');
         String name = filename.substring(0, a);
+        String[] sources = new String[4];
+        if(desfilename.equals("")) sources[0] = name;
+        else{
+            sources = readDescriptionFile(desfilename);
+            name = desfilename.substring(0, desfilename.indexOf('.'));
+        }
         try {
-            BufferedReader br = new BufferedReader(new FileReader(desfilename));
             PrintWriter result = new PrintWriter(new BufferedWriter(new FileWriter(name + ".arff", false)));
-            String line = br.readLine();
-            result.println(line);
+            result.println("% 1. Title: " + sources[0]);
             result.println("%");
             result.println("% 2. Sources:");
-            result.println("%\t(a) Creator: ");
-            result.println("%\t(b) Donor: ");
-            result.println("%\t(c) Date: ");
+            result.println("%\t(a) Creator: " + sources[1]);
+            result.println("%\t(b) Donor: " + sources[2]);
+            result.println("%\t(c) Date: " + sources[3]);
             result.println("%");
             result.println("@RELATION " + name);
             result.println(" ");
-            for(int i = 0; i < descrip.size()-1; i++){
+            for(int i = 1; i < descrip.size(); i++){
                 ArrayList noms = descrip.get(i + "attribute");
                 if(noms.size() == 1) result.println("@ATTRIBUTE " + i + "attribute\tNUMERIC");
                 else{
@@ -134,8 +147,7 @@ public class ARFFConverter {
             ArrayList noms = descrip.get("class");
             noms.sort(comp);
             result.println("@ATTRIBUTE class\t" + noms.toString() + "\n");
-            result.println(" ");
-            result.println("\n\n@DATA");
+            result.println("@DATA");
             int numAtt = dataset.get(0).length;
             int numVal = dataset.size();
             for(int r = 0; r < numVal; r++){
@@ -143,14 +155,77 @@ public class ARFFConverter {
                     result.print(dataset.get(r)[c]);
                     if(c < numAtt-1) result.print(",");
                 }
-                result.println("\n");
+                result.println("");
             }
             result.close();
+        } catch(FileNotFoundException e){
+            e.printStackTrace();
+        } catch(IOException e){
+            e.printStackTrace();
+        }
+    }
+    
+    static String[] readDescriptionFile(String desfilename){
+        String title = "";
+        String creator = "";
+        String donor = "";
+        String date = "";
+        try {
+            BufferedReader br = new BufferedReader(new FileReader(desfilename));
+            String line = br.readLine();
+            title = line.substring(line.indexOf(':')+1);
+            while (line != null) { // find the line where the sources start
+                line = br.readLine();
+                line = line.replaceFirst("^\\s*", "");
+                if(line.startsWith("2.")) break;
+            }
+            char source = 'a';
+            while (line != null) { // collect all lines in the sources
+                line = br.readLine();
+                line = line.replaceFirst("^\\s*", "");
+                if(line.startsWith("3.")) break; // sources end when 3 starts (Past Usage)
+                if(line.equals("")) continue; // we don't care about any blank lines
+                if(line.startsWith("(a)") || line.startsWith("a)")){
+                    source = 'a';
+                    line = line.substring(line.indexOf(')')+1);
+                }else if(line.startsWith("(b)") || line.startsWith("b)")){
+                    source = 'b';
+                    line = line.substring(line.indexOf(')')+1);
+                }else if(line.startsWith("(c)") || line.startsWith("c)")){
+                    source = 'c';
+                    line = line.substring(line.indexOf(')')+1);
+                }
+                if(line.contains(":")) line = line.substring(line.indexOf(':')+1);
+                switch(source){
+                    case 'a':
+                        if(! creator.equals("")) creator += "\n%\t\t";
+                        creator += line;
+                        break;
+                    case 'b':
+                        if(! donor.equals("")) donor += "\n%\t\t";
+                        donor += line;
+                        break;
+                    case 'c':
+                        if(! date.equals("")) date += "\n%\t\t";
+                        date += line;
+                        break;
+                    default:
+                        break;
+                }
+            }
+            /**
+             * would continue to parse description file to find attribute names
+             * but there is no common way these values are presented throughout
+             * the different description files to make this possible for a 
+             * generalized algorithm
+             */
             br.close();
         } catch(FileNotFoundException e){
             e.printStackTrace();
         } catch(IOException e){
             e.printStackTrace();
         }
+        String[] sources = {title, creator, donor, date};
+        return sources;
     }
 }
